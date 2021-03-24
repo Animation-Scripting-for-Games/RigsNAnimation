@@ -1,0 +1,1197 @@
+//////////////////////////////////////////////////////
+//kfMUnity_AnimExport
+//////////////////////////
+//Written by Kiel Figgins
+//www.3dfiggins.com
+//////////////////////////
+//Use to export kfRigs to Unity
+//////////////////////////
+//Version History
+//////////////////////////
+//2.01 (08-16-2019) - Simplifying UI
+//1.10 (10-18-2016) - Fixed static curve delete load error by setting one key on all channels, updated get file name list for all maya files and fbx
+//1.09 (10-17-2016) - Error check on exporting if no fbx warning pops up, changed wording on Exporting mesh on FBX, option to not save maya file
+//1.08 (09-08-2016) - Fixed scale connection on anim export
+//1.07 (08-31-2016) - Open previous file now works with .mb
+//1.06 (08-10-2016) - Hooked up Dir Up, Anim Name Refresh, Setting Anim Name
+//1.05 (08-05-2016) - Started adding Anim Names List
+//1.04 (07-14-2016) - Open on source, option to refresh, force refresh, option to open last file, ui clean up, instructions
+//1.03 (07-13-2016) - Added check for rig parenting before export
+//1.02 (07-07-2016) - Adding in animation start and end frame on export, batch export, file open ignores box
+//1.01 (07-06-2016) - Combined with Character Export, changed hierarchy export
+//1.00 (06-26-2016) - Orginal version
+//////////////////////////
+//Coming Soon
+/*
+-better name in dir, keep all existing, add to existing, remove duplicate
+-fix anim export to key first and last frame
+-try to pull anim name from current file name, * next to button
+-warn if overriding an existing file on export
+-more error checking on selection before running
+	-in character export, check world control for specific attr to let know its the true world
+-able to batch a directory, though that will likely be another/different script
+	-though could make a popup over button that says batch directory
+*/
+
+//Open On Source
+//kfUnity_AnimExport();
+
+global proc kfUnity_AnimExport()
+{
+
+if (`window -q -ex kfUnity_AnimExportWin`)
+    	{
+    	showWindow kfUnity_AnimExportWin ;
+    	return ;
+    	}
+
+
+window -w 230 -h 600 -t "FBX Anim Export" -tlb true kfUnity_AnimExportWin ;
+formLayout mainSaveForm ;
+
+//UI pieces
+button -en true -l "Instructions" -w 200 -ann "" -c ("kfNDBCInstruct();") btnUNAEInstruct; 
+
+//separator -style "in" -h 3 sepUNAEB;
+
+//text -l "Export Character Base FBX File" txUNAEChar;
+//button -l "Export Character" -w 200 -ann "" -c ("kfUnity_CharacterExport();") btnUNAEChar; 
+
+separator -style "in" -h 3 sepUNAEA;
+
+text -l "Export Animation FBX File" txUNAEAnim;
+text -l "1. Save Animation Scene File" txUNAESave;
+text -l "2. Set Timeline" txUNAETime;
+text -l "3. Select a referenced Rig Control" txUNAESel;
+text -l "4. Anim Name" txUNAEName;
+textField -w 120 -tx "idle_v01" tfUNAEName;
+button -l "<" -w 15 -ann "" -c ("kfUNAEAnimNamesFill_Path();") btnUNAEAnimName; 
+
+text -l "5. Export Options" txUNAEOptions;
+checkBox -l "Euler Filter Curves" -v 1 chBxUNAEEuler;
+checkBox -l "Export Mesh with FBX" -v 0 chBxUNAEMesh;
+checkBox -l "Save Anim Maya File" -v 1 chBxUNAEFile;
+checkBox -l "Reopen File after Export" -v 1 chBxUNAEOpen;
+checkBox -l "Delete Static Anim Curves" -v 1 chBxUNAEStatic;
+checkBox -l "Refresh UI (R Click to Force Refresh)" -v 1 chBxUNAERefresh;
+popupMenu();
+	menuItem -l "Force Refresh of UIs" -c kfUNAEForceRefresh;
+checkBox -l "Close FBX Warning Window" -v 1 chBxUNAEClose;
+
+text -l "6." txUNAEExport;
+button -l "Export Anim to Current Directory" -w 200 -ann "" -c ("kfUNAE_Export();") btnUNAEExport; 
+popupMenu();
+	menuItem -l "Batch Export Directory" -c kfUNAEBatchProcess;
+	
+//UI FormLayout
+formLayout -e
+
+		-af btnUNAEInstruct "top" 8 
+    	-an btnUNAEInstruct "bottom" 
+    	-af btnUNAEInstruct "left" 15 
+    	-an btnUNAEInstruct "right" 
+		
+		/*
+		-ac sepUNAEB "top" 8 btnUNAEInstruct
+    	-an sepUNAEB "bottom" 
+    	-af sepUNAEB "left" 5 
+    	-af sepUNAEB "right" 5	
+		
+		-ac txUNAEChar "top" 8 sepUNAEB
+    	-an txUNAEChar "bottom" 
+    	-af txUNAEChar "left" 45 
+    	-an txUNAEChar "right" 
+		
+		-ac btnUNAEChar "top" 8 txUNAEChar
+    	-an btnUNAEChar "bottom" 
+    	-af btnUNAEChar "left" 15 
+    	-an btnUNAEChar "right" 
+    	*/
+		
+		-ac sepUNAEA "top" 8 btnUNAEInstruct
+    	-an sepUNAEA "bottom" 
+    	-af sepUNAEA "left" 5 
+    	-af sepUNAEA "right" 5		
+		
+		-ac txUNAEAnim "top" 8 sepUNAEA
+    	-an txUNAEAnim "bottom" 
+    	-af txUNAEAnim "left" 55 
+    	-an txUNAEAnim "right" 
+		
+		-ac txUNAESave "top" 8 txUNAEAnim
+    	-an txUNAESave "bottom" 
+    	-af txUNAESave "left" 5 
+    	-an txUNAESave "right" 
+		
+		-ac txUNAETime "top" 8 txUNAESave
+    	-an txUNAETime "bottom" 
+    	-af txUNAETime "left" 5 
+    	-an txUNAETime "right" 
+		
+		-ac txUNAESel "top" 8 txUNAETime
+    	-an txUNAESel "bottom" 
+    	-af txUNAESel "left" 5 
+    	-an txUNAESel "right" 
+		
+		-ac txUNAEName "top" 8 txUNAESel
+    	-an txUNAEName "bottom" 
+    	-af txUNAEName "left" 5 
+    	-an txUNAEName "right" 
+		
+		-ac tfUNAEName "top" 8 txUNAESel
+    	-an tfUNAEName "bottom" 
+    	-ac tfUNAEName "left" 5 txUNAEName
+    	-an tfUNAEName "right" 
+		
+		-ac btnUNAEAnimName "top" 8 txUNAESel
+    	-an btnUNAEAnimName "bottom" 
+    	-ac btnUNAEAnimName "left" 5 tfUNAEName
+    	-an btnUNAEAnimName "right" 
+		
+		
+		
+		-ac txUNAEOptions "top" 8 btnUNAEAnimName
+    	-an txUNAEOptions "bottom" 
+    	-af txUNAEOptions "left" 5 
+    	-an txUNAEOptions "right" 
+		
+		-ac chBxUNAEEuler "top" 8 txUNAEOptions
+    	-an chBxUNAEEuler "bottom" 
+    	-af chBxUNAEEuler "left" 20 
+    	-an chBxUNAEEuler "right" 
+		
+		-ac chBxUNAEMesh "top" 8 chBxUNAEEuler
+    	-an chBxUNAEMesh "bottom" 
+    	-af chBxUNAEMesh "left" 20 
+    	-an chBxUNAEMesh "right" 
+		
+		-ac chBxUNAEFile "top" 8 chBxUNAEMesh
+    	-an chBxUNAEFile "bottom" 
+    	-af chBxUNAEFile "left" 20 
+    	-an chBxUNAEFile "right" 
+
+		-ac chBxUNAEOpen "top" 8 chBxUNAEFile
+    	-an chBxUNAEOpen "bottom" 
+    	-af chBxUNAEOpen "left" 20 
+    	-an chBxUNAEOpen "right" 
+		
+		-ac chBxUNAEStatic "top" 8 chBxUNAEOpen
+    	-an chBxUNAEStatic "bottom" 
+    	-af chBxUNAEStatic "left" 20 
+    	-an chBxUNAEStatic "right" 
+		
+		-ac chBxUNAERefresh "top" 8 chBxUNAEStatic
+    	-an chBxUNAERefresh "bottom" 
+    	-af chBxUNAERefresh "left" 20 
+    	-an chBxUNAERefresh "right" 
+		
+		-ac chBxUNAEClose "top" 8 chBxUNAERefresh
+    	-an chBxUNAEClose "bottom" 
+    	-af chBxUNAEClose "left" 20 
+    	-an chBxUNAEClose "right" 
+		
+		-ac txUNAEExport "top" 8 chBxUNAEClose
+    	-an txUNAEExport "bottom" 
+    	-af txUNAEExport "left" 5 
+    	-an txUNAEExport "right" 
+		
+		-ac btnUNAEExport "top" 8 chBxUNAEClose
+    	-an btnUNAEExport "bottom" 
+    	-ac btnUNAEExport "left" 5 txUNAEExport
+    	-an btnUNAEExport "right" 
+
+    	mainSaveForm ;
+
+    showWindow kfUnity_AnimExportWin ;
+    
+    //Resize the main window
+    window -e -widthHeight 230 380 kfUnity_AnimExportWin;
+
+}//end of proc kfUnity_AnimExport
+
+////////////////////
+//UI Specific Procs
+
+//////////////////////////////////////////////////////////////////
+global proc kfUNAE_Export()
+{
+	//select a char ctrl
+	string $sel[] = `ls -sl`;
+
+	//Anim Name
+	string $animNameUI = `textField -q -tx tfUNAEName`;
+
+	//euler
+	int $euler = `checkBox -q -v chBxUNAEEuler`;
+
+	//export mesh
+	int $exportMesh = `checkBox -q -v chBxUNAEMesh`;
+	
+	//export mesh
+	int $saveAnimFile = `checkBox -q -v chBxUNAEFile`;
+	
+	//reopen
+	int $reopen = `checkBox -q -v chBxUNAEOpen`;
+
+	//delete static curves
+	int $delStatic = `checkBox -q -v chBxUNAEStatic`;
+	
+	//refresh ui
+	int $refreshUI = `checkBox -q -v chBxUNAERefresh`;
+
+	//close fbx window
+	int $closeFbxWin = `checkBox -q -v chBxUNAEClose`;
+
+	/////////////////////////////////
+	//Work
+	
+	if(`size($sel)`)
+	{
+		//Refresh
+		if($refreshUI)
+		{refresh -suspend 1;}
+
+		string $justName = `match "[^:]*$" $sel[0]`;
+		string $nameSpace = `substituteAllString $sel[0] $justName ""`;
+		string $anyU[] = `ls ($nameSpace + "*_Unity_Output_Skeleton")`;
+		string $s = `substituteAllString $anyU[0] $nameSpace ""`;
+		string $charName = `substituteAllString $s "_Unity_Output_Skeleton" ""`;
+
+		string $animName = `formValidObjectName($animNameUI)`;
+
+		//get the file type
+		string $fileKind[] = `file -q -type`;
+
+		//Determine ma(9) or mb(10)
+		int $fileExt = size($fileKind[0]);
+
+		//Working with file type
+		string $fileEnder;
+		string $fileEndType;
+		if($fileExt == 9)
+			{
+				$fileEnder = ".ma";
+				$fileEndType = "mayaAscii";
+			} else {
+				$fileEnder = ".mb";
+				$fileEndType = "mayaBinary";
+				}
+
+		//get just the name and extenstion
+		string $theFile = `file -q -sn -shn`;
+
+		//minus the extension
+		string $theFileName = `basenameEx($theFile)`;
+
+		//get the number of characters in file name and extension
+		int $theFileCount = size($theFileName);
+
+		//for finding out the path
+		string $fullPath = `file -q -sn`;
+
+		//getting rid of the file name and extension
+		int $thePath = (size($fullPath) - ($theFileCount + 3));
+
+		//just the path
+		string $justPath = startString($fullPath, $thePath);
+		
+		//Set Anim Range on Rig
+		int $sf = `playbackOptions -q -min`;
+		int $ef = `playbackOptions -q -max`;
+		setAttr ($nameSpace + $charName + "_Unity_Output_Skeleton.animStartFrame") $sf;
+		setAttr ($nameSpace + $charName + "_Unity_Output_Skeleton.animEndFrame") $ef;
+		
+		
+		//Save AnimFile version
+		if($saveAnimFile)
+		{
+			file -rename ($justPath + $charName + "@" + $animName + "_AnimFile" + $fileEnder); 
+			file -save -type $fileEndType;
+		}
+
+		//Create Dups to export
+		setAttr ($nameSpace + $charName + "_AutoRig.outputSkeletonVis") 1;
+		setAttr ($nameSpace + $charName + "_AutoRig.outputMeshVis") 1;
+		
+		select ($nameSpace + $charName + "_Unity_Output_Skeleton");
+		pickWalk -d Up;
+		string $autoRigTop[] = `ls -sl`;
+		
+		string $autoRigTopParent[] = `listRelatives -p $autoRigTop`;
+		
+		if(`size($autoRigTopParent)` == 1)
+		{
+			select $autoRigTop;
+			parent -w;
+		}
+
+		//select ($nameSpace + $charName + "_Unity_Output_Skeleton") ($nameSpace + $charName + "_Unity_Output_Meshes");
+		select $autoRigTop;
+		duplicate -rr -un;
+
+		string $consToDel[] = `ls "*_UNtoDEL"`;
+		delete $consToDel;
+		
+		string $topPar[] = `listRelatives -p ($charName + "_Unity_Output_Meshes")`;
+		
+		string $kids[] = `listRelatives $topPar`;
+		
+		int $counter;
+        int $sizer = `size($kids)`;
+
+		for ($counter = 0; $counter < $sizer; $counter++)
+		{
+		    if($kids[$counter] != ($charName + "_Unity_Output_Meshes"))
+		    {
+		        if($kids[$counter] != ($charName + "_Unity_Output_Skeleton"))
+		        {delete $kids[$counter];}
+		    }
+		}
+
+
+		string $outJs[] = `listRelatives -ad ($charName + "_Unity_Output_Skeleton")`;
+		int $counter;
+		int $sizer = size($outJs);
+		for ($counter = 0; $counter < $sizer; $counter++)
+		{
+			parentConstraint ($nameSpace + $outJs[$counter]) $outJs[$counter];
+			//scaleConstraint ($nameSpace + $outJs[$counter]) $outJs[$counter];
+			connectAttr -f ($nameSpace + $outJs[$counter] + ".sx") ($outJs[$counter] + ".sx");
+			connectAttr -f ($nameSpace + $outJs[$counter] + ".sy") ($outJs[$counter] + ".sy");
+			connectAttr -f ($nameSpace + $outJs[$counter] + ".sz") ($outJs[$counter] + ".sz");
+		}
+
+
+		//Define Const Type Arrays
+		string $constArr[];
+		clear($constArr);
+
+		string $allCons[];
+		clear($allCons);
+
+		//find connections        
+		int $counterLoop;
+		int $sizerLoop = `size($outJs)`;
+		for ($counterLoop = 0; $counterLoop < $sizerLoop; $counterLoop++)
+		{
+			//$counterLoop = 0;
+			
+			$allCons = `listConnections 
+			($outJs[$counterLoop] + ".tx") ($outJs[$counterLoop] + ".ty") ($outJs[$counterLoop] + ".tz") 
+			($outJs[$counterLoop] + ".rx") ($outJs[$counterLoop] + ".ry") ($outJs[$counterLoop] + ".rz") 
+			($outJs[$counterLoop] + ".sx") ($outJs[$counterLoop] + ".sy") ($outJs[$counterLoop] + ".sz")
+			`;
+			//filter out constraints    
+			int $counter;
+			int $sizer = `size($allCons)`;
+
+			if($sizer > 0)
+			{
+				for ($counter = 0; $counter < $sizer; $counter++)
+				{
+					//$counter = 0;
+					string $userConst[] = `ls -st $allCons[$counter]`;
+
+					if($userConst[1] == "pointConstraint")
+					{
+						int $arraySize = (`size($constArr)` + 1);
+						$constArr[($arraySize - 1)] = $userConst[0];
+					}//end of if const is point
+					
+					if($userConst[1] == "orientConstraint")
+					{
+						int $arraySize = (`size($constArr)` + 1);
+						$constArr[($arraySize - 1)] = $userConst[0];
+					}//end of if const is orient
+					
+					if($userConst[1] == "scaleConstraint")
+					{
+						int $arraySize = (`size($constArr)` + 1);
+						$constArr[($arraySize - 1)] = $userConst[0];
+					}//end of if const is orient
+					
+					if($userConst[1] == "parentConstraint")
+					{
+						int $arraySize = (`size($constArr)` + 1);
+						$constArr[($arraySize - 1)] = $userConst[0];
+					}//end of if const is orient
+					
+					if($userConst[1] == "aimConstraint")
+					{
+						int $arraySize = (`size($constArr)` + 1);
+						$constArr[($arraySize - 1)] = $userConst[0];
+					}//end of if const is orient
+				}//end of loop through all connections
+			}//end of if any connections found
+		}//end of connections through object
+				
+		//Remove duplicate constraints
+		string $constArr[] = stringArrayRemoveDuplicates($constArr);
+
+		//Bake out
+		$n = `playbackOptions -q -min`;
+		$x = `playbackOptions -q -max`;
+		string $time = ("\"" + $n + ":" + $x + "\"");
+
+		//"
+		
+		//Attrs
+		string $theAttr = ("-at tx -at ty -at tz -at rx -at ry -at rz -at sx -at sy -at sz ");
+
+		//Bake 
+		select $outJs;
+		eval ("bakeResults -simulation true -t " + $time + " -sb 1 -dic true -pok true -sac false " + $theAttr);
+
+		//Run Euler
+		if($euler)
+		{
+			select $outJs;
+			performEulerFilter graphEditor1FromOutliner;
+			filterCurve $outJs.rotateZ $outJs.rotateY $outJs.rotateX;
+		}//end of euler
+
+		//Delete Constraints
+		delete $constArr;
+
+		//delete static anim curves
+		if($delStatic)
+		{
+			select $outJs;
+			delete -staticChannels -unitlessAnimationCurves false -hierarchy none -controlPoints 0 -shape 1;
+			
+			//Need to lock in at least one set of values for engine
+			select $outJs;
+			SetKeyScale; 
+			SetKeyRotate; 
+			SetKeyTranslate; 
+			
+		}
+
+		//Asign Lambert1 to meshes
+		string $ms[] = `listRelatives ($charName + "_Unity_Output_Meshes")`;
+		select $ms;
+		sets -e -forceElement initialShadingGroup;
+
+		if($exportMesh)
+		{select ($charName + "_Unity_Output_Meshes") ($charName + "_Unity_Output_Skeleton");}
+		else
+		{select ($charName + "_Unity_Output_Skeleton");}
+
+		//export fbx
+		file -force -options "v=0;" -typ "FBX export" -pr -es ($justPath + $charName + "@" + $animName + ".fbx");
+		if($closeFbxWin)
+		{
+		  string $openWindows[] = `lsUI -windows`;
+		  for ($thisWindow in $openWindows)
+		  {
+			if ($thisWindow == "FbxWarningWindow"){deleteUI $thisWindow;}
+		  }//end of loop through windows
+		}//end of if to close fbx warning window
+
+		//open previous file
+		if($reopen)
+		{
+			//file -f -options "v=0;" -ignoreVersion -pmt 0 -typ "mayaAscii" -o $fullPath;
+			file -f -options "v=0;" -ignoreVersion -pmt 0 -o $fullPath;
+		}
+		
+		if($refreshUI)
+		{refresh -suspend 0;}
+
+		print ("\n\nSUCCESS: " + $animName + " Animation Exported");
+		
+		
+
+		string $userSelection = `confirmDialog
+		-title "Anim Export"
+		-message ("Animation Export Successful!\n\n" + $justPath + $charName + "@" + $animName + ".fbx")
+		-button "Continue"
+		-defaultButton "Continue"
+		-cancelButton "Continue"
+		-dismissString "Continue"`;
+	
+	}//end of if something selected
+	else
+	{
+		print "\n\nFAIL: Please select a referenced rig control";
+		
+		string $userSelection = `confirmDialog
+		-title "Anim Export"
+		-message "Animation Export Failed.  Please make sure that you've selected a single control on a referenced KF rig."
+		-button "Try Again"
+		-defaultButton "Try Again"
+		-cancelButton "Try Again"
+		-dismissString "Try Again"`;
+		
+	}//end of if nothing selected
+
+}//end of proc
+
+
+
+
+
+
+
+
+
+
+global proc kfUNAEForceRefresh()
+{
+refresh -suspend 0;
+}//end of proc
+
+
+
+
+
+global proc kfUnity_CharacterExport()
+{
+
+if (`window -q -ex kfUnity_CharacterExportWin`)
+    	{
+    	showWindow kfUnity_CharacterExportWin ;
+    	return ;
+    	}
+
+
+window -w 230 -h 600 -t "Character Export" kfUnity_CharacterExportWin ;
+formLayout mainSaveForm ;
+
+//UI pieces
+text -l "1. Open Rig File" txUNCE1;
+text -l "2." txUNCE2;
+button -l "Prep Character" -w 160 -ann "" -c ("kfUNCE_Prep();") btnUNCE2;
+text -l "3. File > Export Selection > Option Box" txUNCE3;
+text -l "4. Export as FBX with proper settings" txUNCE4;
+text -l "5. DO NOT SAVE RIG FILE" txUNCE5;
+
+ 
+
+//UI FormLayout
+formLayout -e
+    
+    	-af txUNCE1 "top" 8 
+    	-an txUNCE1 "bottom" 
+    	-af txUNCE1 "left" 5 
+    	-an txUNCE1 "right" 
+		
+		-ac txUNCE2 "top" 8 txUNCE1
+    	-an txUNCE2 "bottom" 
+    	-af txUNCE2 "left" 5 
+    	-an txUNCE2 "right" 
+		
+		-ac btnUNCE2 "top" 8 txUNCE1
+    	-an btnUNCE2 "bottom" 
+    	-ac btnUNCE2 "left" 5 txUNCE2
+    	-an btnUNCE2 "right" 
+		
+		-ac txUNCE3 "top" 8 btnUNCE2
+    	-an txUNCE3 "bottom" 
+    	-af txUNCE3 "left" 5 
+    	-an txUNCE3 "right" 
+		
+		-ac txUNCE4 "top" 8 txUNCE3
+    	-an txUNCE4 "bottom" 
+    	-af txUNCE4 "left" 5 
+    	-an txUNCE4 "right" 
+		
+		-ac txUNCE5 "top" 8 txUNCE4
+    	-an txUNCE5 "bottom" 
+    	-af txUNCE5 "left" 5 
+    	-an txUNCE5 "right" 
+
+    	mainSaveForm ;
+
+    showWindow kfUnity_CharacterExportWin ;
+    
+    //Resize the main window
+    window -e -widthHeight 215 125 kfUnity_CharacterExportWin;
+
+}//end of proc kfUnity_CharacterExport
+
+
+
+
+//////////////////////////////////////////////////////////////////
+global proc kfUNCE_Prep()
+{
+	string $anyW[] = `ls ("CTRL_*_World")`;
+
+	if(`size($anyW)` > 0)
+	{
+		string $name = `substituteAllString $anyW[0] "CTRL_" ""`;
+		string $name = `substituteAllString $name "_World" ""`;
+		
+		setAttr ($name + "_AutoRig.outputMeshVis") 1;
+		setAttr ($name + "_AutoRig.outputSkeletonVis") 1;
+		
+		string $condel[] = `ls "*_UNtoDEL"`;
+		if(`size($condel)` > 0){delete $condel;}
+		
+		string $topPar[] = `listRelatives -p ($name + "_Unity_Output_Meshes")`;
+		
+		string $kids[] = `listRelatives $topPar`;
+		
+		int $counter;
+        int $sizer = `size($kids)`;
+
+		for ($counter = 0; $counter < $sizer; $counter++)
+		{
+		    if($kids[$counter] != ($name + "_Unity_Output_Meshes"))
+		    {
+		        if($kids[$counter] != ($name + "_Unity_Output_Skeleton"))
+		        {delete $kids[$counter];}
+		    }
+		}
+		
+		select $topPar;
+		SelectHierarchy;
+		
+		print "\n\nSUCCESS: Character Ready for Export";
+	}
+	else
+	{
+		print "\n\nFAIL: No Proper character Found";
+	}
+}//end of proc
+
+
+
+
+
+
+
+
+
+
+
+
+
+global proc kfUNAEBatchProcess()
+{
+window -w 50 -h 50 -t "Batch Animation Export" kfUNAEBatchWin ;
+formLayout mainSaveForm ;
+
+//UI pieces
+text -l "1. Open an _AnimFile in the character Directory to Batch" txUNAEOpen;
+text -l "2. Define the Character and set the Anim Export Settings" txUNAESet;
+text -l "3." txUNAE3;
+button -l "Batch All _AnimFile" -w 125 -ann "" -c ("kfUNAEBatchFiles();") btnUNAEBatch; 
+button -l "UI Refresh if Batch Fails" -w 125 -ann "" -c ("refresh -suspend 0;") btnUNAEFail; 
+
+//UI FormLayout
+formLayout -e
+
+    -af txUNAEOpen "top" 4 
+    -an txUNAEOpen "bottom" 
+    -af txUNAEOpen "left" 5 
+    -an txUNAEOpen "right" 
+
+    -ac txUNAESet "top" 4 txUNAEOpen
+    -an txUNAESet "bottom" 
+    -af txUNAESet "left" 5 
+    -an txUNAESet "right" 
+    
+    -ac txUNAE3 "top" 4 txUNAESet
+    -an txUNAE3 "bottom" 
+    -af txUNAE3 "left" 5 
+    -an txUNAE3 "right" 
+        
+    -ac btnUNAEBatch "top" 4 txUNAESet
+    -an btnUNAEBatch "bottom" 
+    -ac btnUNAEBatch "left" 5 txUNAE3
+    -an btnUNAEBatch "right" 
+        
+    -ac btnUNAEFail "top" 4 txUNAESet
+    -an btnUNAEFail "bottom" 
+    -ac btnUNAEFail "left" 15 btnUNAEBatch
+    -an btnUNAEFail "right" 
+
+    mainSaveForm ;
+
+showWindow kfUNAEBatchWin;
+
+//Resize the main window
+window -e -widthHeight 290 70 kfUNAEBatchWin;
+
+}//end of proc
+
+
+global proc kfUNAEBatchFiles()
+{
+    //get the file type
+    string $fileKind[] = `file -q -type`;
+    
+    //Determine ma(9) or mb(10)
+    int $fileExt = size($fileKind[0]);
+    
+    //Working with file type
+    string $fileEnder;
+    string $fileEndType;
+    if($fileExt == 9)
+        {
+            $fileEnder = ".ma";
+            $fileEndType = "mayaAscii";
+        } else {
+            $fileEnder = ".mb";
+            $fileEndType = "mayaBinary";
+            }
+    
+    //get just the name and extenstion
+    string $theFile = `file -q -sn -shn`;
+    
+    //minus the extension
+    string $theFileName = `basenameEx($theFile)`;
+    
+    //get the number of characters in file name and extension
+    int $theFileCount = size($theFileName);
+    
+    //for finding out the path
+    string $fullPath = `file -q -sn`;
+
+    //getting rid of the file name and extension
+    int $thePath = (size($fullPath) - ($theFileCount + 3));
+    
+    //just the path
+    string $justPath = startString($fullPath, $thePath);
+    
+    //get All Files
+    string $allFiles[] = `getFileList -folder $justPath`;
+    
+    //Get only _AnimFiles.ma
+    string $onlyAnim[];
+    clear($onlyAnim);
+    
+    int $counter;
+    int $sizer = `size($allFiles)`;
+    if($sizer > 0)
+    {
+        for ($counter = 0; $counter < $sizer; $counter++)
+        {
+             //$counter = 0;
+             
+             string $am = `match "_AnimFile.ma" $allFiles[$counter]`;
+             
+             if($am == "_AnimFile.ma")
+             {
+                int $arraySize = (`size($onlyAnim)` + 1);
+                $onlyAnim[($arraySize - 1)] = $allFiles[$counter];
+             }
+        }
+    }//end of if files found
+    
+    //Open Only Anim Files
+    int $counter;
+    int $sizer = `size($onlyAnim)`;
+    
+    if($sizer > 0)
+    {
+    
+    string $openWindows[] = `lsUI -windows`;
+    for ($thisWindow in $openWindows)
+    {if ($thisWindow == "kfUNAEBatchExWin"){deleteUI kfUNAEBatchExWin;}}
+    
+    window -w 50 -h 50 -t "Batch Animation Export Progress" kfUNAEBatchExWin ;
+    formLayout mainSaveForm ;
+    progressBar -step 1 -maxValue $sizer -width 300 prgUNAEBatch;
+    text -l ("Batch Exporting " + $sizer + " Files") txUNAEBatch;
+    formLayout -e
+        -af prgUNAEBatch "top" 10 
+        -an prgUNAEBatch "bottom" 
+        -af prgUNAEBatch "left" 20 
+        -an prgUNAEBatch "right" 
+        
+        -ac txUNAEBatch "top" 10 prgUNAEBatch
+        -an txUNAEBatch "bottom" 
+        -af txUNAEBatch "left" 110 
+        -an txUNAEBatch "right" 
+        mainSaveForm ;
+    showWindow kfUNAEBatchExWin;
+    window -e -widthHeight 340 60 kfUNAEBatchExWin;
+    
+        for ($counter = 0; $counter < $sizer; $counter++)
+        {
+             //$counter = 0;
+             
+             file -f -options "v=0;" -ignoreVersion -pmt 0 -o ($justPath + $onlyAnim[$counter]);
+             
+             //-find matching character
+             //-get start/end frame
+             //-set timeline start/end frame
+             //-bake export
+             //    -don't save maya file
+             //    -don't set timeline
+             //    -don't reopen
+			 //    -don't have confirm window
+			 //    -get name of anim from file name
+             
+             progressBar -edit -step 1 prgUNAEBatch;
+        }
+        
+        deleteUI kfUNAEBatchExWin;
+        
+		//confirm dialog
+        print ("\n\nSUCCESS: " + $sizer + " Animations Exported");
+    }//end of if files found
+
+}//end of proc
+
+
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////
+global proc kfUNAEAnimNames()
+{
+
+if (`window -q -ex kfUNAEAnimNamesWin`)
+    	{
+    	showWindow kfUNAEAnimNamesWin ;
+    	return ;
+    	}
+
+
+window -w 230 -h 600 -t "Existing Anim Names" kfUNAEAnimNamesWin ;
+formLayout mainSaveForm ;
+
+//UI pieces
+textField -w 420 -tx "" tfUNAEANDir;
+button -l "^" -w 20 -ann "" -c ("kfUNAEAnimNamesUpDir();") btnUNAEANDirUp; 
+
+textScrollList -h 20 -w 20 -ams false  
+-sc ("kfUNAEAnimNamesPop();")
+tslUNAEANScroll;
+
+popupMenu();
+	menuItem -l "Refresh" -c ("kfUNAEAnimNamesFill_List();");
+
+//UI FormLayout
+formLayout -e
+
+    	-af tfUNAEANDir "top" 8 
+    	-an tfUNAEANDir "bottom" 
+    	-af tfUNAEANDir "left" 5 
+    	-af tfUNAEANDir "right" 35
+		
+		-af btnUNAEANDirUp "top" 8 
+    	-an btnUNAEANDirUp "bottom" 
+    	-an btnUNAEANDirUp "left"  
+    	-af btnUNAEANDirUp "right" 5
+
+    	-ac tslUNAEANScroll "top" 8 btnUNAEANDirUp
+    	-af tslUNAEANScroll "bottom" 5
+    	-af tslUNAEANScroll "left"  5
+    	-af tslUNAEANScroll "right" 5
+
+    	mainSaveForm ;
+
+    showWindow kfUNAEAnimNamesWin ;
+
+    //Resize the main window
+    window -e -widthHeight 460 200 kfUNAEAnimNamesWin;
+
+}//end of proc kfUNAEAnimNames
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+global proc kfUNAEAnimNamesPop()
+{
+	string $listName[] = `textScrollList -q -si tslUNAEANScroll`;
+	textField -e -tx $listName tfUNAEName;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+global proc kfUNAEAnimNamesUpDir()
+{
+string $dir = `textField -q -tx tfUNAEANDir`;
+int $endSlash = endsWith($dir, "/");
+
+if($endSlash)
+{
+    int $pathSize = (size($dir)) - 1;   
+    $dir = startString($dir, $pathSize);
+}
+
+string $pathSec = `match "[^\/]*$" $dir`;
+string $dir = `substituteAllString $dir ("/" + $pathSec) "/"`;
+
+textField -e -tx $dir tfUNAEANDir;
+
+kfUNAEAnimNamesFill_List();
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+global proc kfUNAEAnimNamesFill_Path()
+{
+	//select a char ctrl
+	string $sel[] = `ls -sl`;
+
+	/////////////////////////////////
+	//Work
+	
+	if(`size($sel)`)
+	{
+
+		kfUNAEAnimNames();
+	
+		string $justName = `match "[^:]*$" $sel[0]`;
+		string $nameSpace = `substituteAllString $sel[0] $justName ""`;
+		string $anyU[] = `ls ($nameSpace + "*_Unity_Output_Skeleton")`;
+		string $s = `substituteAllString $anyU[0] $nameSpace ""`;
+		string $charName = `substituteAllString $s "_Unity_Output_Skeleton" ""`;
+
+		//get the file type
+		string $fileKind[] = `file -q -type`;
+
+		//Determine ma(9) or mb(10)
+		int $fileExt = size($fileKind[0]);
+
+		//Working with file type
+		string $fileEnder;
+		string $fileEndType;
+		if($fileExt == 9)
+			{
+				$fileEnder = ".ma";
+				$fileEndType = "mayaAscii";
+			} else {
+				$fileEnder = ".mb";
+				$fileEndType = "mayaBinary";
+				}
+
+		//get just the name and extenstion
+		string $theFile = `file -q -sn -shn`;
+
+		//minus the extension
+		string $theFileName = `basenameEx($theFile)`;
+
+		//get the number of characters in file name and extension
+		int $theFileCount = size($theFileName);
+
+		//for finding out the path
+		string $fullPath = `file -q -sn`;
+
+		//getting rid of the file name and extension
+		int $thePath = (size($fullPath) - ($theFileCount + 3));
+
+		//just the path
+		string $justPath = startString($fullPath, $thePath);
+
+		//Fill In
+		textField -e -tx $justPath tfUNAEANDir;
+		
+		//Pop List
+		kfUNAEAnimNamesFill_List();
+		
+	}//end of if something selected
+	else
+	{
+		print "\n\nFAIL: Please select a referenced control";
+	}
+
+
+}//end of fill Proc
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+global proc kfUNAEAnimNamesFill_List()
+{
+	//select a char ctrl
+	string $sel[] = `ls -sl`;
+
+	/////////////////////////////////
+	//Work
+	
+	if(`size($sel)`)
+	{
+
+		kfUNAEAnimNames();
+	
+		string $justName = `match "[^:]*$" $sel[0]`;
+		string $nameSpace = `substituteAllString $sel[0] $justName ""`;
+		string $anyU[] = `ls ($nameSpace + "*_Unity_Output_Skeleton")`;
+		string $s = `substituteAllString $anyU[0] $nameSpace ""`;
+		string $charName = `substituteAllString $s "_Unity_Output_Skeleton" ""`;
+
+		//just the path
+		string $justPath = `textField -q -tx tfUNAEANDir`;
+		
+		string $dirTop[] = `getFileList -fld $justPath -fs ($charName + "@*.fbx")`;
+		string $dirTopMA[] = `getFileList -fld $justPath -fs ($charName + "@*_AnimFile.ma")`;
+        string $dirTopMB[] = `getFileList -fld $justPath -fs ($charName + "@*_AnimFile.mb")`;
+
+		string $fullDirList[];
+		clear ($fullDirList);
+
+		int $counter;
+		int $sizer = `size($dirTop)`;
+
+		for ($counter = 0; $counter < $sizer; $counter++)
+		{
+			//$counter = 0;
+			string $justName = `match "[^@]*$" $dirTop[$counter]`;
+			string $animName = `substituteAllString $justName ".fbx" ""`;
+			
+			int $arraySize = (`size($fullDirList)` + 1);
+			$fullDirList[($arraySize - 1)] = $animName;
+		}//end of loop
+		
+		int $counter;
+		int $sizer = `size($dirTopMA)`;
+
+		for ($counter = 0; $counter < $sizer; $counter++)
+		{
+			//$counter = 0;
+			string $justName = `match "[^@]*$" $dirTopMA[$counter]`;
+			string $animName = `substituteAllString $justName "_AnimFile.ma" ""`;
+			
+			int $arraySize = (`size($fullDirList)` + 1);
+			$fullDirList[($arraySize - 1)] = $animName;
+		}//end of loop
+		
+		int $counter;
+		int $sizer = `size($dirTopMB)`;
+
+		for ($counter = 0; $counter < $sizer; $counter++)
+		{
+			//$counter = 0;
+			string $justName = `match "[^@]*$" $dirTopMB[$counter]`;
+			string $animName = `substituteAllString $justName "_AnimFile.mb" ""`;
+			
+			int $arraySize = (`size($fullDirList)` + 1);
+			$fullDirList[($arraySize - 1)] = $animName;
+		}//end of loop
+		
+		
+		string $fullDirList[] = stringArrayRemoveDuplicates($fullDirList);
+
+
+		if(`size($fullDirList)` > 0)
+		{
+			string $x; 
+			textScrollList -e -ra tslUNAEANScroll; 
+
+			for ($x in $fullDirList) 
+			textScrollList 
+			-edit 
+			-append $x 
+			tslUNAEANScroll; 
+		}
+		else
+		{ 
+			textScrollList -e -ra tslUNAEANScroll; 
+		}
+		
+	}//end of if something selected
+	else
+	{
+		print "\n\nFAIL: Please select a referenced control";
+	}
+
+
+}//end of fill Proc
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+///////////////////////////////////////////////////////////////
+//Instructions
+global proc kfNDBCInstruct()
+{
+
+if (`window -q -ex kfUnity_AnimExportInstructWin`)
+    	{
+    	showWindow kfUnity_AnimExportInstructWin ;
+    	return ;
+    	}
+
+
+window -w 850 -h 500 -t "FBX Animation Exporter Instructions" kfUnity_AnimExportInstructWin ;
+formLayout mainSaveForm ;
+
+//UI pieces
+scrollField -w 100 -h 100 -wordWrap true -tx 
+
+(
+"Animation Exporter - by Kiel Figgins - KielFiggins22@gmail.com - 3dFiggins.com"
++ "\n\n" + 
+"This script is for exporting KF rigs that have been setup for game engine support.  From this script you can export the animations you create to FBX format.  Currently the FBX's and overall process has only been tested in Unity and Unreal, however, FBX's by their nature are universal and the only information being based is joint and skin data, so it should read in other engines as well."
++ "\n\n" + 
+"------------General Use / Steps---------------"
++ "\n" + 
+"As for animation exports, you'll want to reference the GameReady rig file into a scene and animate as you see fit.  When it comes time to export, follow the on screen instructions in the UI.  The final output is a maya scene file and a corresponding FBX file.  The FBX file is for the game engine, while the maya file is for backup incase you want to batch export all the animations again or at least have a back up of the file that was used to create a specific animation."
+
+)
+
+-ed 0 scrollUNAEInstruct;
+
+//UI FormLayout
+formLayout -e
+    
+    	-af scrollUNAEInstruct "top" 5 
+    	-af scrollUNAEInstruct "bottom" 5
+    	-af scrollUNAEInstruct "left" 5 
+    	-af scrollUNAEInstruct "right" 5
+
+    	mainSaveForm ;
+
+    showWindow kfUnity_AnimExportInstructWin ;
+    
+    //Resize the main window
+    window -e -widthHeight 850 320 kfUnity_AnimExportInstructWin;
+
+}//end of proc 
+
+
+
+
+
+
+
+/*
+"Animation Exporter - by Kiel Figgins - KielFiggins22@gmail.com - 3dFiggins.com"
++ "\n\n" + 
+"This script is for exporting KF rigs that have been setup for game engine support.  From this script you can export the base character FBX file along with the animations you create.  Currently the FBX's and overall process has only been tested in Unity, however, FBX's by their nature are universal and the only information being based is joint and skin data, so it should read in Unreal as well."
++ "\n\n" + 
+"------------General Use / Steps---------------"
++ "\n\n" + 
+"Starting out you'll need to export the base character FBX to be brought into the game engine.  If you are only exporting animations, you can skip this step.  If not, open the Rig file itself, not a referenced animation file.  From there click the Export Character button and follow the onscreen instructions.  Do NOT save the rig file after export, as the rig itself is removed to create a clean outliner for export."
++ "\n\n" + 
+"As for animation exports, you'll want to reference the rig file into a scene and animate as you see fit.  When it comes time to export, follow the on screen instructions in the UI.  The final output is a maya scene file and a corresponding FBX file.  The FBX file is for the game engine, while the maya file is for backup incase you want to batch export all the animations again or at least have a back up of the file that was used to create a specific animation."
+*/
+
+
+
+
+
